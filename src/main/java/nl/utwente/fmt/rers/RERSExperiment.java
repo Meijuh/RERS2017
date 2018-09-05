@@ -1,46 +1,59 @@
 package nl.utwente.fmt.rers;
 
-import com.google.common.base.Suppliers;
 import de.learnlib.algorithms.adt.learner.ADTLearnerBuilder;
 import de.learnlib.algorithms.dhc.mealy.MealyDHC;
 import de.learnlib.algorithms.discriminationtree.mealy.DTLearnerMealyBuilder;
 import de.learnlib.algorithms.kv.mealy.KearnsVaziraniMealyBuilder;
-import de.learnlib.algorithms.lstargeneric.mealy.ExtensibleLStarMealyBuilder;
+import de.learnlib.algorithms.lstar.mealy.ExtensibleLStarMealyBuilder;
 import de.learnlib.algorithms.malerpnueli.MalerPnueliMealyBuilder;
 import de.learnlib.algorithms.rivestschapire.RivestSchapireMealyBuilder;
 import de.learnlib.algorithms.ttt.mealy.TTTLearnerMealyBuilder;
 import de.learnlib.api.SUL;
 import de.learnlib.api.algorithm.LearningAlgorithm.MealyLearner;
 import de.learnlib.api.logging.LearnLogger;
-import de.learnlib.api.logging.LoggingBlackBoxProperty.MealyLoggingBlackBoxProperty;
-import de.learnlib.api.modelchecking.modelchecker.ModelChecker.MealyModelCheckerLasso;
-import de.learnlib.api.oracle.BlackBoxOracle.MealyBlackBoxOracle;
-import de.learnlib.api.oracle.BlackBoxOracle.MealyBlackBoxProperty;
-import de.learnlib.api.oracle.EmptinessOracle.MealyEmptinessOracle;
-import de.learnlib.api.oracle.EmptinessOracle.MealyLassoEmptinessOracle;
+import de.learnlib.api.logging.LoggingPropertyOracle;
+import de.learnlib.api.oracle.BlackBoxOracle;
+import de.learnlib.api.oracle.EmptinessOracle;
+import de.learnlib.api.oracle.LassoEmptinessOracle;
+import de.learnlib.api.oracle.OmegaMembershipOracle;
+import de.learnlib.api.oracle.PropertyOracle;
 import de.learnlib.api.oracle.EquivalenceOracle.MealyEquivalenceOracle;
-import de.learnlib.api.oracle.InclusionOracle.MealyInclusionOracle;
-import de.learnlib.api.oracle.MembershipOracle.MealyMembershipOracle;
+import de.learnlib.api.oracle.InclusionOracle;
+import de.learnlib.api.oracle.MembershipOracle;
 import de.learnlib.api.oracle.SymbolQueryOracle;
+import de.learnlib.filter.cache.mealy.MealyCaches;
+import de.learnlib.filter.cache.mealy.SymbolQueryCache;
+import de.learnlib.filter.cache.sul.SULCaches;
+import de.learnlib.filter.statistic.oracle.CounterOracle;
+import de.learnlib.filter.statistic.oracle.CounterSymbolQueryOracle;
+import de.learnlib.filter.statistic.sul.ResetCounterObservableSUL;
 import de.learnlib.filter.statistic.sul.ResetCounterSUL;
+import de.learnlib.filter.statistic.sul.SymbolCounterObservableSUL;
 import de.learnlib.filter.statistic.sul.SymbolCounterSUL;
-import de.learnlib.modelchecking.modelchecker.LTSminLTLAlternatingBuilder;
-import de.learnlib.oracle.blackbox.CExFirstBBOracle.CExFirstMealyBBOracle;
-import de.learnlib.oracle.blackbox.DisproveFirstBBOracle.DisproveFirstMealyBBOracle;
-import de.learnlib.oracle.blackbox.ModelCheckingBBProperty.MealyBBPropertyMealyLasso;
-import de.learnlib.oracle.emptiness.BreadthFirstEmptinessOracle.MealyBreadthFirstEmptinessOracle;
-import de.learnlib.oracle.emptiness.LassoAutomatonEmptinessOracle.MealyLassoMealyEmptinessOracle;
-import de.learnlib.oracle.equivalence.EQOracleChain.MealyEQOracleChain;
-import de.learnlib.oracle.equivalence.RandomWordsEQOracle.MealyRandomWordsEQOracle;
-import de.learnlib.oracle.equivalence.WpMethodEQOracle.MealyWpMethodEQOracle;
-import de.learnlib.oracle.inclusion.BreadthFirstInclusionOracle.MealyBreadthFirstInclusionOracle;
-import de.learnlib.oracle.membership.SULOmegaOracle;
+import de.learnlib.oracle.emptiness.MealyBFEmptinessOracle;
+import de.learnlib.oracle.emptiness.MealyLassoEmptinessOracleImpl;
+import de.learnlib.oracle.equivalence.CExFirstOracle;
+import de.learnlib.oracle.equivalence.DisproveFirstOracle;
+import de.learnlib.oracle.equivalence.EQOracleChain;
+import de.learnlib.oracle.equivalence.MealyBFInclusionOracle;
+import de.learnlib.oracle.equivalence.RandomWordsEQOracle;
+import de.learnlib.oracle.equivalence.WpMethodEQOracle;
+import de.learnlib.oracle.membership.AbstractSULOmegaOracle;
 import de.learnlib.oracle.membership.SULOracle;
 import de.learnlib.oracle.membership.SULSymbolQueryOracle;
-import de.learnlib.oracle.parallelism.ParallelOracle.PoolPolicy;
-import de.learnlib.oracle.parallelism.StaticParallelOracleBuilder;
-import de.learnlib.util.BBCExperiment.MealyBBCExperiment;
+import de.learnlib.oracle.property.MealyFinitePropertyOracle;
+import de.learnlib.oracle.property.MealyLassoPropertyOracle;
+import de.learnlib.oracle.property.PropertyOracleChain;
+import de.learnlib.util.Experiment;
 import lombok.Getter;
+import net.automatalib.modelcheckers.ltsmin.ltl.LTSminLTLAlternatingBuilder;
+import net.automatalib.modelcheckers.ltsmin.ltl.LTSminLTLIOBuilder;
+import net.automatalib.modelcheckers.ltsmin.monitor.LTSminMonitorAlternatingBuilder;
+import net.automatalib.modelcheckers.ltsmin.monitor.LTSminMonitorIOBuilder;
+import net.automatalib.modelchecking.ModelChecker;
+import net.automatalib.modelchecking.ModelCheckerLasso;
+import net.automatalib.modelchecking.modelchecker.cache.SizeMealyModelCheckerCache;
+import net.automatalib.modelchecking.modelchecker.cache.SizeMealyModelCheckerLassoCache;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.impl.Alphabets;
 import nl.utwente.fmt.rers.problems.seq.Problem;
@@ -50,11 +63,13 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.function.Function;
 
+import static nl.utwente.fmt.rers.ProblemSUL.DEADLOCK;
+
 /**
  * A specialization of MealyBBCExperiment. That parses LTL formulae, and instantiates the proper classes
  * (such as ModelChecker).
  */
-public class RERSExperiment extends MealyBBCExperiment<String, String> {
+public class RERSExperiment extends Experiment.MealyExperiment<String, String> {
 
     enum LEARNER {
         ADT,
@@ -67,23 +82,37 @@ public class RERSExperiment extends MealyBBCExperiment<String, String> {
         TTT
     }
 
+    public static String TYPE;
+
     public static final LearnLogger LOGGER = LearnLogger.getLogger(RERSExperiment.class);
 
     @Getter
-    private final SymbolCounterSUL eqSymbolCounterSUL;
+    private final List<PropertyOracle.MealyPropertyOracle> propertyOracles;
 
     @Getter
-    private final ResetCounterSUL eqResetCounterSUL;
+    private static ResetCounterSUL realQueryCounterSUL, learnQueryCounterSUL, eqQueryCounterSUL, emQueryCounterSUL, inQueryCounterSUL;
+
+    @Getter
+    private static SymbolCounterSUL realSymbolCounterSUL, learnSymbolCounterSUL, eqSymbolCounterSUL, emSymbolCounterSUL, inSymbolCounterSUL;
+
+    @Getter
+    private static ResetCounterObservableSUL emOQueryCounterSUL;
+
+    @Getter
+    private static SymbolCounterObservableSUL emOSymbolCounterSUL;
+
+//    @Getter
+//    private static CounterOracle realCounter, learnCounter, eqCounter, emCounter, inCounter;
+
+    @Getter
+    private static ResetCounterObservableSUL emoCounter;
 
     private RERSExperiment(MealyLearner learningAlgorithm,
                            MealyEquivalenceOracle equivalenceAlgorithm,
                            Alphabet inputs,
-                           MealyBlackBoxOracle<String, String> blackBoxOracle,
-                           SymbolCounterSUL eqSymbolCounterSUL,
-                           ResetCounterSUL eqResetCounterSUL) {
-        super(learningAlgorithm, equivalenceAlgorithm, inputs, blackBoxOracle, true);
-        this.eqSymbolCounterSUL = eqSymbolCounterSUL;
-        this.eqResetCounterSUL = eqResetCounterSUL;
+                           List<PropertyOracle.MealyPropertyOracle> propertyOracles) {
+        super(learningAlgorithm, equivalenceAlgorithm, inputs);
+        this.propertyOracles = propertyOracles;
     }
 
     /**
@@ -92,10 +121,15 @@ public class RERSExperiment extends MealyBBCExperiment<String, String> {
      * @param number the {@link Problem} number to instantiate.
      * @param multiplier the multiplier used when computing the number of unrolls for a lasso.
      * @param minimumUnfolds the minimum number of times a lasso needs to be unrolled.
-     * @param disproveFirst whether to use a {@link DisproveFirstMealyBBOracle},
-     *                      instead of a {@link CExFirstMealyBBOracle}.
+     * @param disproveFirst whether to use a {@link DisproveFirstOracle}.
+     * @param cexFirst whether to use a {@link CExFirstOracle}.
      * @param learner the learner to instantiate.
-     * @param randomWords whether to use an additional {@link de.learnlib.oracle.equivalence.RandomWordsEQOracle}.
+     * @param randomWords whether to use an additional {@link RandomWordsEQOracle}.
+     * @param alternate whether to use alternating semantics
+     * @param monitor whether to build a monitor
+     * @param cache whether to use a model checker cache.
+     * @param buchi whether to build a Buchi automaton.
+     * @param timeout timeout in seconds.
      *
      * @return the RERSExperiment
      *
@@ -105,54 +139,57 @@ public class RERSExperiment extends MealyBBCExperiment<String, String> {
                                                double multiplier,
                                                int minimumUnfolds,
                                                boolean disproveFirst,
+                                               boolean cexFirst,
                                                LEARNER learner,
-                                               boolean randomWords) throws FileNotFoundException {
+                                               boolean randomWords,
+                                               boolean alternate,
+                                               boolean monitor,
+                                               boolean cache,
+                                               boolean buchi,
+                                               int timeout) throws FileNotFoundException {
+        assert buchi || monitor;
+
+        assert !(disproveFirst && cexFirst);
+
+        String mcType = monitor ? "monitor" : "";
+        mcType += buchi && monitor ? "-" : "";
+        mcType += buchi ? "buchi" : "";
+
+        final String bbcType;
+        if (cexFirst) bbcType = "cex-first";
+        else if (disproveFirst) bbcType = "disprove-first";
+        else bbcType = "none";
+
         final ProblemSUL problemSUL = new ProblemSUL(number);
-
-        final SymbolCounterSUL learnSymbolCounterSUL = new SymbolCounterSUL("learner", problemSUL);
-        final ResetCounterSUL learnResetCounterSUL = new ResetCounterSUL("learner", learnSymbolCounterSUL);
-        final SUL learnSUL = learnResetCounterSUL;
-        final SULOracle learnOracle = new SULOracle(learnSUL);
-        final SymbolQueryOracle learnSymbolQueryOracle = new SULSymbolQueryOracle(learnSUL);
-
-        final SymbolCounterSUL eqSymbolCounterSUL = new SymbolCounterSUL("equivalence", problemSUL);
-        final ResetCounterSUL eqResetCounterSUL = new ResetCounterSUL("equivalence", eqSymbolCounterSUL);
-        final SUL eqSUL = eqResetCounterSUL;
-        final SULOracle eqOracle = new SULOracle(eqSUL);
-
-        final SymbolCounterSUL emSymbolCounterSUL = new SymbolCounterSUL("emptiness", problemSUL);
-        final ResetCounterSUL emResetCounterSUL = new ResetCounterSUL("emptiness", emSymbolCounterSUL);
-        final SUL emSUL = emResetCounterSUL;
-
-        final SymbolCounterSUL iSymbolCounterSUL = new SymbolCounterSUL("inclusion", problemSUL);
-        final ResetCounterSUL iResetCounterSUL = new ResetCounterSUL("inclusion", iSymbolCounterSUL);
-        final SUL iSUL = iResetCounterSUL;
-        final SULOracle iOracle = new SULOracle(iSUL);
-
         final Alphabet alphabet = Alphabets.fromArray(problemSUL.getInputs());
 
-        final MealyMembershipOracle membershipOracle =
-                new StaticParallelOracleBuilder(Suppliers.ofInstance(eqOracle)).
-                                    withDefaultNumInstances().
-                                    withMinBatchSize(50000).
-                                    withPoolPolicy(PoolPolicy.FIXED).createMealy();
+        final SymbolQueryOracle learnOracle;
+        final MembershipOracle.MealyMembershipOracle eqOracle, emOracle, inOracle;
+        final OmegaMembershipOracle.MealyOmegaMembershipOracle emOOracle;
 
-        MealyEquivalenceOracle equivalenceOracle = new MealyWpMethodEQOracle(3, membershipOracle);
-        if (randomWords) {
-            equivalenceOracle = new MealyEQOracleChain(
-                    equivalenceOracle,
-                    new MealyRandomWordsEQOracle(
-                            membershipOracle,
-                            number * 5,
-                            number * 50, 1000 * 1000 * 100,
-                            new Random(123456l)));
-        }
+        final SUL realSUL =
+                //SULCaches.createDAGCache(alphabet,
+                                                      realSymbolCounterSUL = new SymbolCounterSUL("real symbols", realQueryCounterSUL = new ResetCounterSUL("real queries", problemSUL))
+                //)
+                ;
+        learnOracle = new SULSymbolQueryOracle(learnSymbolCounterSUL = new SymbolCounterSUL("learner", learnQueryCounterSUL = new ResetCounterSUL("learner", realSUL)));
+        eqOracle = new SULOracle(eqSymbolCounterSUL = new SymbolCounterSUL("equivalence", eqQueryCounterSUL = new ResetCounterSUL("equivalence", realSUL)));
+        emOracle = new SULOracle(emSymbolCounterSUL = new SymbolCounterSUL("emptiness", emQueryCounterSUL = new ResetCounterSUL("emptiness", realSUL)));
+        inOracle = new SULOracle(inSymbolCounterSUL = new SymbolCounterSUL("inclusion", inQueryCounterSUL = new ResetCounterSUL("inclusion", realSUL)));
+
+        emOOracle = AbstractSULOmegaOracle.newOracle(emOSymbolCounterSUL = new SymbolCounterObservableSUL("omega emptiness", emOQueryCounterSUL = new ResetCounterObservableSUL("omega emptiness", problemSUL)));
+
+        //final SymbolQueryOracle realOracle = MealyCaches.createCache(alphabet, realCounter = new CounterSymbolQueryOracle(problemSUL, "real"));
+        //learnCounter = new CounterOracle(realOracle, "learn");
+        //eqCounter = new CounterOracle(realOracle, "equivalence");
+        //emCounter = new CounterOracle(realOracle, "emptiness");
+        //inCounter = new CounterOracle(realOracle, "inclusion");
 
         final MealyLearner mealyLearner;
 
         switch (learner) {
             case ADT:
-                mealyLearner = new ADTLearnerBuilder().withAlphabet(alphabet).withOracle(learnSymbolQueryOracle).create();
+                mealyLearner = new ADTLearnerBuilder().withAlphabet(alphabet).withOracle(learnOracle).create();
                 break;
             case DHC:
                 mealyLearner = new MealyDHC(alphabet, learnOracle);
@@ -180,50 +217,133 @@ public class RERSExperiment extends MealyBBCExperiment<String, String> {
                 break;
         }
 
+        assert mealyLearner != null;
+
         final Function<String, String> edgeParser = s -> s;
+        final List<String> formulae = parseLTL(number, alternate);
 
-        final MealyModelCheckerLasso modelChecker = new LTSminLTLAlternatingBuilder().
-                withString2Input(edgeParser).withString2Output(edgeParser).withSkipOutputs(Collections.singleton("")).
-                withMinimumUnfolds(minimumUnfolds).withMultiplier(multiplier).
-                //withInheritIO(true).withKeepFiles(true).
-                create();
+        final List<PropertyOracle.MealyPropertyOracle> monitorOracles = new ArrayList<>();
+        if (monitor) {
+            ModelChecker.MealyModelChecker modelChecker;
 
-        final MealyEmptinessOracle emptinessOracle = new MealyBreadthFirstEmptinessOracle(1, new SULOracle(problemSUL));
+            if (alternate) {
+                modelChecker =
+                        new LTSminMonitorAlternatingBuilder().withString2Input(edgeParser).withString2Output(edgeParser)
+                                                             .withSkipOutputs(Collections.singleton(DEADLOCK))
+                                                             //.withKeepFiles(true)
+                                                             .create();
+            } else {
+                modelChecker = new LTSminMonitorIOBuilder().withString2Input(edgeParser).withString2Output(edgeParser)
+                                                           .withSkipOutputs(Collections.singleton(DEADLOCK))
+                                                           //.withKeepFiles(true)
+                                                           .create();
+            }
 
-        final MealyLassoEmptinessOracle lassoEmptinessOracle =
-                new MealyLassoMealyEmptinessOracle(SULOmegaOracle.newOracle(emSUL));
+            if (cache) modelChecker = new SizeMealyModelCheckerCache(modelChecker);
 
-        final MealyInclusionOracle inclusionOracle = new MealyBreadthFirstInclusionOracle(1, iOracle);
+            final EmptinessOracle.MealyEmptinessOracle emptinessOracle =
+                    new MealyBFEmptinessOracle(emOracle, 1.0);
 
-        final List<String> formulae = parseLTL(number);
-        final Set<MealyBlackBoxProperty> properties = new HashSet();
-        for (int i = 0; i < formulae.size(); i++) {
-            final String formula = formulae.get(i);
-            final MealyBlackBoxProperty p = new RERSProperty(
-                    number,
-                    learner.toString(),
-                    new MealyLoggingBlackBoxProperty(
-                        new MealyBBPropertyMealyLasso(modelChecker, lassoEmptinessOracle, inclusionOracle, formula)),
-                    emptinessOracle,
-                    i,
-                    modelChecker,
-                    learnSymbolCounterSUL,
-                    eqSymbolCounterSUL,
-                    emSymbolCounterSUL,
-                    iSymbolCounterSUL,
-                    learnResetCounterSUL,
-                    eqResetCounterSUL,
-                    emResetCounterSUL,
-                    iResetCounterSUL);
-            properties.add(p);
+            final InclusionOracle.MealyInclusionOracle inclusionOracle =
+                    new MealyBFInclusionOracle(inOracle, 1.0);
+
+            for (int i = 0; i < formulae.size(); i++) {
+                final String formula = formulae.get(i);
+                final PropertyOracle.MealyPropertyOracle p = new RERSProperty(number,
+                                                                              learner.toString(),
+                                                                              new LoggingPropertyOracle.MealyLoggingPropertyOracle(
+                                                                                      new MealyFinitePropertyOracle(
+                                                                                              formula,
+                                                                                              inclusionOracle,
+                                                                                              emptinessOracle,
+                                                                                              modelChecker)),
+                                                                              i,
+                                                                              mcType,
+                                                                              bbcType);
+                monitorOracles.add(p);
+            }
         }
 
-        final MealyBlackBoxOracle blackBoxOracle;
-        if (disproveFirst) blackBoxOracle = new DisproveFirstMealyBBOracle(properties);
-        else blackBoxOracle = new CExFirstMealyBBOracle(properties);
+        final List<PropertyOracle.MealyPropertyOracle> buchiOracles = new ArrayList<>();
+        if (buchi) {
+            ModelCheckerLasso.MealyModelCheckerLasso modelChecker;
 
-        return new RERSExperiment(
-                mealyLearner, equivalenceOracle, alphabet, blackBoxOracle, eqSymbolCounterSUL, eqResetCounterSUL);
+            if (alternate) {
+                modelChecker =
+                        new LTSminLTLAlternatingBuilder().withString2Input(edgeParser).withString2Output(edgeParser).withSkipOutputs(Collections.singleton(DEADLOCK))
+                                                         .withMinimumUnfolds(minimumUnfolds).withMultiplier(multiplier)
+                                                         //.withKeepFiles(true)
+                                                         .create();
+            } else {
+                modelChecker = new LTSminLTLIOBuilder().withString2Input(edgeParser).withString2Output(edgeParser)
+                                                       .withSkipOutputs(Collections.singleton(DEADLOCK))
+                                                       .withMinimumUnfolds(minimumUnfolds).withMultiplier(multiplier)
+                                                       //.withKeepFiles(true)
+                                                       .create();
+            }
+
+            if (cache) modelChecker = new SizeMealyModelCheckerLassoCache(modelChecker);
+
+            final LassoEmptinessOracle.MealyLassoEmptinessOracle lassoEmptinessOracle =
+                    new MealyLassoEmptinessOracleImpl(emOOracle);
+
+            final InclusionOracle.MealyInclusionOracle inclusionOracle =
+                    new MealyBFInclusionOracle(inOracle, 1.0);
+
+            for (int i = 0; i < formulae.size(); i++) {
+                final String formula = formulae.get(i);
+                final PropertyOracle.MealyPropertyOracle p = new RERSProperty(number,
+                                                                              learner.toString(),
+                                                                              new LoggingPropertyOracle.MealyLoggingPropertyOracle(
+                                                                                      new MealyLassoPropertyOracle(
+                                                                                              formula,
+                                                                                              inclusionOracle,
+                                                                                              lassoEmptinessOracle,
+                                                                                              modelChecker)),
+                                                                              i,
+                                                                              mcType,
+                                                                              bbcType);
+                buchiOracles.add(p);
+            }
+        }
+
+        final List<PropertyOracle.MealyPropertyOracle> propertyOracles;
+        if (monitor && buchi) {
+            assert monitorOracles.size() == buchiOracles.size();
+            propertyOracles = new ArrayList<>();
+            for (int i = 0; i < monitorOracles.size(); i++) {
+                final PropertyOracleChain.MealyPropertyOracleChain chain
+                        = new PropertyOracleChain.MealyPropertyOracleChain(monitorOracles.get(i),
+                                                                           buchiOracles.get(i));
+                propertyOracles.add(chain);
+            }
+        } else if (monitor) propertyOracles = monitorOracles;
+        else if (buchi) propertyOracles = buchiOracles;
+        else propertyOracles = null;
+
+        assert propertyOracles != null;
+
+        EQOracleChain.MealyEQOracleChain equivalenceOracle = new EQOracleChain.MealyEQOracleChain();
+
+        final BlackBoxOracle.MealyBlackBoxOracle blackBoxOracle;
+        if (disproveFirst) blackBoxOracle = new DisproveFirstOracle.MealyDisproveFirstOracle(propertyOracles);
+        else if (cexFirst) blackBoxOracle = new CExFirstOracle.MealyCExFirstOracle(propertyOracles);
+        else blackBoxOracle = null;
+
+        if (blackBoxOracle != null) equivalenceOracle.addOracle(blackBoxOracle);
+
+        equivalenceOracle.addOracle(new WpMethodEQOracle.MealyWpMethodEQOracle(eqOracle, 3));
+        if (randomWords) {
+            equivalenceOracle.addOracle(new EQOracleChain.MealyEQOracleChain(
+                    equivalenceOracle,
+                    new RandomWordsEQOracle.MealyRandomWordsEQOracle(
+                            eqOracle,
+                            number * 5,
+                            number * 50, 1000 * 1000 * 100,
+                            new Random(123456l))));
+        }
+
+        return new RERSExperiment(mealyLearner, new TimeOutEQOracle(equivalenceOracle, timeout), alphabet, propertyOracles);
     }
 
     /**
@@ -235,7 +355,7 @@ public class RERSExperiment extends MealyBBCExperiment<String, String> {
      *
      * @throws FileNotFoundException when the appropriate file containing LTL formulae can not be found.
      */
-    static List<String> parseLTL(int number) throws FileNotFoundException {
+    static List<String> parseLTL(int number, boolean alternate) throws FileNotFoundException {
 
         final List<String> result = new ArrayList();
         final InputStream is = RERSExperiment.class.getClass().getResourceAsStream(
@@ -259,7 +379,34 @@ public class RERSExperiment extends MealyBBCExperiment<String, String> {
                     while (lineScanner.hasNext()) {
                         final String token = lineScanner.next();
 
+                        // for spot
+//                        if (token.equals("true")) sb.append("true");
+//                        else if (token.equals("false")) sb.append("false");
+//                        else if (token.equals("(")) sb.append("(");
+//                        else if (token.equals(")")) sb.append(")");
+//                        else if (token.equals("!")) sb.append("!");
+//                        else if (token.equals("R")) sb.append(" R ");
+//                        else if (token.equals("U")) sb.append(" U ");
+//                        else if (token.equals("X")) sb.append("X ");
+//                        else if (token.equals("WU")) sb.append(" W ");
+//                        else if (token.equals("&")) sb.append(" && ");
+//                        else if (token.equals("|")) sb.append(" || ");
+//                        else if (token.matches("i[A-Z]")) {
+//                                sb.append("(\"input=='"); sb.append(token.charAt(1)); sb.append("'\")"); }
+//                        else if (token.matches("o[A-Z]")) {
+//                            sb.append("(\"input=='"); sb.append(token.charAt(1)); sb.append("'\")"); }
+//                        else throw new RuntimeException("I do not know what to do with token: " + token);
 
+                        final String input, output;
+                        if (alternate) {
+                            input = "letter";
+                            output = "letter";
+                        } else {
+                            input = "input";
+                            output = "output";
+                        }
+
+                        // for LTSmin
                         if (token.equals("true")) sb.append("true");
                         else if (token.equals("false")) sb.append("false");
                         else if (token.equals("(")) sb.append("(");
@@ -271,15 +418,17 @@ public class RERSExperiment extends MealyBBCExperiment<String, String> {
                         else if (token.equals("WU")) sb.append(" W ");
                         else if (token.equals("&")) sb.append(" && ");
                         else if (token.equals("|")) sb.append(" || ");
-                        else if (token.matches("i[A-Z]")) { sb.append("("); sb.append("letter"); sb.append(" == \""); sb.append(token.charAt(1)); sb.append("\")"); }
-                        else if (token.matches("o[A-Z]")) { sb.append("("); sb.append("letter"); sb.append(" == \""); sb.append(token.charAt(1)); sb.append("\")"); }
+                        else if (token.matches("i[A-Z]")) { sb.append("("); sb.append(input); sb.append(" == \""); sb
+                                .append(token.charAt(1)); sb.append("\")"); }
+                        else if (token.matches("o[A-Z]")) { sb.append("("); sb.append(output); sb.append(" == \""); sb
+                                .append(token.charAt(1)); sb.append("\")"); }
                         else throw new RuntimeException("I do not know what to do with token: " + token);
                     }
 
                     final String formula = sb.toString();
                     result.add(formula);
 
-                    LOGGER.info(String.format("Parsed formula #%d: %s", result.size(), formula));
+                    LOGGER.info(String.format("Parsed formula #%d: %s", result.size() - 1, formula));
                 }
             }
         }

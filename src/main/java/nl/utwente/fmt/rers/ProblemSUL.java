@@ -1,6 +1,6 @@
 package nl.utwente.fmt.rers;
 
-import de.learnlib.api.SUL;
+import de.learnlib.api.ObservableSUL;
 
 import java.io.FileNotFoundException;
 import java.lang.reflect.InvocationTargetException;
@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.List;
 import java.util.ArrayList;
 
-import de.learnlib.api.exception.SULException;
 import de.learnlib.api.logging.LearnLogger;
 import lombok.Getter;
 import nl.utwente.fmt.rers.problems.seq.Problem;
@@ -19,7 +18,9 @@ import nl.utwente.fmt.rers.problems.seq.Problem;
  *
  * @author Jeroen Meijer
  */
-public class ProblemSUL implements SUL<String, String> {
+public class ProblemSUL implements ObservableSUL<Problem, String, String> {
+
+    public static final String DEADLOCK = "-";
 
     public static final LearnLogger LOGGER = LearnLogger.getLogger(ProblemSUL.class);
 
@@ -110,7 +111,7 @@ public class ProblemSUL implements SUL<String, String> {
         }
 
         final String output = problem.getOutput();
-        if (output == null) return "";
+        if (output == null) return DEADLOCK;
         else return output;
     }
 
@@ -131,7 +132,7 @@ public class ProblemSUL implements SUL<String, String> {
      * @throws UnsupportedOperationException when the appropriate Java class can not be found.
      */
     @Override
-    public SUL<String, String> fork() throws UnsupportedOperationException {
+    public ObservableSUL<Problem, String, String> fork() throws UnsupportedOperationException {
         try {
             final ProblemSUL problemSUL = new ProblemSUL(number);
             return problemSUL;
@@ -151,13 +152,8 @@ public class ProblemSUL implements SUL<String, String> {
      * @return the current Problem instance.
      */
     @Override
-    public Object getState() {
+    public Problem getState() {
         return problem;
-    }
-
-    @Override
-    public boolean canRetrieveState() {
-        return true;
     }
 
     @Override

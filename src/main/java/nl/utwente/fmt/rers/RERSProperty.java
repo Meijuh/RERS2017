@@ -1,15 +1,10 @@
 package nl.utwente.fmt.rers;
 
 import de.learnlib.api.logging.LearnLogger;
-import de.learnlib.api.modelchecking.counterexample.Lasso.MealyLasso;
-import de.learnlib.api.modelchecking.modelchecker.ModelChecker.MealyModelCheckerLasso;
-import de.learnlib.api.modelchecking.modelchecker.ModelCheckingException;
-import de.learnlib.api.oracle.BlackBoxOracle.MealyBlackBoxProperty;
-import de.learnlib.api.oracle.EmptinessOracle.MealyEmptinessOracle;
+import de.learnlib.api.oracle.PropertyOracle;
 import de.learnlib.api.query.DefaultQuery;
-import de.learnlib.filter.statistic.sul.ResetCounterSUL;
-import de.learnlib.filter.statistic.sul.SymbolCounterSUL;
 import net.automatalib.automata.transout.MealyMachine;
+import net.automatalib.exception.ModelCheckingException;
 import net.automatalib.words.Word;
 
 import javax.annotation.Nullable;
@@ -24,15 +19,11 @@ import java.util.Collection;
  *  - also try to falsify a property without a LassoEmptinessOracle.
  */
 @ParametersAreNonnullByDefault
-public class RERSProperty implements MealyBlackBoxProperty<String, String, String> {
+public class RERSProperty implements PropertyOracle.MealyPropertyOracle<String, String, String> {
 
     public static final LearnLogger LOGGER = LearnLogger.getLogger(RERSProperty.class);
 
-    private final MealyBlackBoxProperty<String, ?, ?> property;
-
-    private final MealyEmptinessOracle eo;
-
-    private final MealyModelCheckerLasso<?, ?, String> mealyModelCheckerLasso;
+    private final MealyPropertyOracle<String, String, String> propertyOracle;
 
     private int fixedFalseNegatives = 0;
 
@@ -44,68 +35,43 @@ public class RERSProperty implements MealyBlackBoxProperty<String, String, Strin
 
     private final String learner;
 
-    private final SymbolCounterSUL learnSymbolCounterSUL;
-    private final SymbolCounterSUL eqSymbolCounterSUL;
-    private final SymbolCounterSUL emSymbolCounterSUL;
-    private final SymbolCounterSUL iSymbolCounterSUL;
+    private final String mcType;
 
-    private final ResetCounterSUL learnResetCounterSUL;
-    private final ResetCounterSUL eqResetCounterSUL;
-    private final ResetCounterSUL emResetCounterSUL;
-    private final ResetCounterSUL iResetCounterSUL;
+    private final String bbo;
 
     public RERSProperty(int problem,
                         String learner,
-                        MealyBlackBoxProperty p,
-                        MealyEmptinessOracle eo,
+                        MealyPropertyOracle p,
                         int propertyNumber,
-                        MealyModelCheckerLasso mealyModelCheckerLasso,
-                        SymbolCounterSUL learnSymbolCounterSUL,
-                        SymbolCounterSUL eqSymbolCounterSUL,
-                        SymbolCounterSUL emSymbolCounterSUL,
-                        SymbolCounterSUL iSymbolCounterSUL,
-                        ResetCounterSUL learnResetCounterSUL,
-                        ResetCounterSUL eqResetCounterSUL,
-                        ResetCounterSUL emResetCounterSUL,
-                        ResetCounterSUL iResetCounterSUL) {
+                        String mcType,
+                        String bbo) {
         this.problem = problem;
         this.learner = learner;
-        this.property = p;
-        this.eo = eo;
+        this.propertyOracle = p;
         this.propertyNumber = propertyNumber;
-        this.mealyModelCheckerLasso = mealyModelCheckerLasso;
-
-        this.learnSymbolCounterSUL = learnSymbolCounterSUL;
-        this.eqSymbolCounterSUL = eqSymbolCounterSUL;
-        this.emSymbolCounterSUL = emSymbolCounterSUL;
-        this.iSymbolCounterSUL = iSymbolCounterSUL;
-
-        this.learnResetCounterSUL = learnResetCounterSUL;
-        this.eqResetCounterSUL = eqResetCounterSUL;
-        this.emResetCounterSUL = emResetCounterSUL;
-        this.iResetCounterSUL = iResetCounterSUL;
-
+        this.mcType = mcType;
+        this.bbo = bbo;
     }
 
     @Override
     public boolean isDisproved() {
-        return property.isDisproved();
+        return propertyOracle.isDisproved();
     }
 
     @Override
     public void setProperty(String s) {
-        property.setProperty(s);
+        propertyOracle.setProperty(s);
     }
 
     @Override
     public String getProperty() {
-        return property.getProperty();
+        return propertyOracle.getProperty();
     }
 
     @Nullable
     @Override
     public DefaultQuery getCounterExample() {
-        return property.getCounterExample();
+        return propertyOracle.getCounterExample();
     }
 
     /**
@@ -122,60 +88,65 @@ public class RERSProperty implements MealyBlackBoxProperty<String, String, Strin
     @Override
     public DefaultQuery disprove(MealyMachine hypothesis, Collection inputs) throws ModelCheckingException {
 
-        final DefaultQuery<String, Word<String>> result = property.disprove(hypothesis, inputs);
+        final DefaultQuery<String, Word<String>> result = propertyOracle.disprove(hypothesis, inputs);
 
-        {
-            mealyModelCheckerLasso.setMinimumUnfolds(3);
-            mealyModelCheckerLasso.setMultiplier(0.0);
-            final MealyLasso testLasso =
-                    mealyModelCheckerLasso.findCounterExample(hypothesis, inputs, property.getProperty());
-            final DefaultQuery<String, Word<String>> test;
-            if (testLasso != null) test = eo.findCounterExample(testLasso, inputs);
-            else test = null;
+        //{
+        //    mealyModelCheckerLasso.setMinimumUnfolds(3);
+        //    mealyModelCheckerLasso.setMultiplier(0.0);
+        //    final MealyLasso testLasso =
+        //            mealyModelCheckerLasso.findCounterExample(hypothesis, inputs, property.getProperty());
+        //    final DefaultQuery<String, Word<String>> test;
+        //    if (testLasso != null) test = eo.findCounterExample(testLasso, inputs);
+        //    else test = null;
 
-            if (test != null && result == null) {
-                fixedFalseNegatives++;
-                LOGGER.info(
-                        String.format("possibly false: #%d, %s (%d times, fixed)", propertyNumber, property.getProperty(), fixedFalseNegatives));
-                LOGGER.logQuery("query: " + test);
-            }
-        }
+        //    if (test != null && result == null) {
+        //        fixedFalseNegatives++;
+        //        LOGGER.info(
+        //                String.format("possibly false: #%d, %s (%d times, fixed)", propertyNumber, property.getProperty(), fixedFalseNegatives));
+        //        LOGGER.logQuery("query: " + test);
+        //    }
+        //}
 
-        {
-            mealyModelCheckerLasso.setMinimumUnfolds(3);
-            mealyModelCheckerLasso.setMultiplier(1.0);
-            final MealyLasso testLasso =
-                    mealyModelCheckerLasso.findCounterExample(hypothesis, inputs, property.getProperty());
-            final DefaultQuery<String, Word<String>> test;
-            if (testLasso != null) test = eo.findCounterExample(testLasso, inputs);
-            else test = null;
+        //{
+        //    mealyModelCheckerLasso.setMinimumUnfolds(3);
+        //    mealyModelCheckerLasso.setMultiplier(1.0);
+        //    final MealyLasso testLasso =
+        //            mealyModelCheckerLasso.findCounterExample(hypothesis, inputs, property.getProperty());
+        //    final DefaultQuery<String, Word<String>> test;
+        //    if (testLasso != null) test = eo.findCounterExample(testLasso, inputs);
+        //    else test = null;
 
-            if (test != null && result == null) {
-                relativeFalseNegatives++;
-                LOGGER.info(
-                        String.format("possibly false: #%d, %s (%d times, relative)", propertyNumber, property.getProperty(), fixedFalseNegatives));
-                LOGGER.logQuery("query: " + test);
-            }
-        }
+        //    if (test != null && result == null) {
+        //        relativeFalseNegatives++;
+        //        LOGGER.info(
+        //                String.format("possibly false: #%d, %s (%d times, relative)", propertyNumber, property.getProperty(), fixedFalseNegatives));
+        //        LOGGER.logQuery("query: " + test);
+        //    }
+        //}
 
         // write the CSV line.
         if (result != null) {
             System.out.printf(
-                    "%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d%n",
+                    "%d,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d%n",
                     problem,
                     learner,
+                    mcType,
+                    bbo,
                     propertyNumber,
-                    fixedFalseNegatives,
-                    relativeFalseNegatives,
                     hypothesis.getStates().size(),
-                    learnSymbolCounterSUL.getStatisticalData().getCount(),
-                    eqSymbolCounterSUL.getStatisticalData().getCount(),
-                    emSymbolCounterSUL.getStatisticalData().getCount(),
-                    iSymbolCounterSUL.getStatisticalData().getCount(),
-                    learnResetCounterSUL.getStatisticalData().getCount(),
-                    eqResetCounterSUL.getStatisticalData().getCount(),
-                    emResetCounterSUL.getStatisticalData().getCount(),
-                    iResetCounterSUL.getStatisticalData().getCount());
+                    RERSExperiment.getRealSymbolCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getLearnSymbolCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getEqSymbolCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getEmSymbolCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getEmOSymbolCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getInSymbolCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getRealQueryCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getLearnQueryCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getEqQueryCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getEmQueryCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getEmOQueryCounterSUL().getStatisticalData().getCount(),
+                    RERSExperiment.getInQueryCounterSUL().getStatisticalData().getCount(),
+                    result.getInput().length());
         }
 
         return result;
@@ -187,16 +158,6 @@ public class RERSProperty implements MealyBlackBoxProperty<String, String, Strin
     public DefaultQuery findCounterExample(MealyMachine hypothesis, Collection inputs)
             throws ModelCheckingException {
 
-        return property.findCounterExample(hypothesis, inputs);
-    }
-
-    @Override
-    public void clearCache() {
-        property.clearCache();
-    }
-
-    @Override
-    public void useCache() {
-        property.useCache();
+        return propertyOracle.findCounterExample(hypothesis, inputs);
     }
 }
