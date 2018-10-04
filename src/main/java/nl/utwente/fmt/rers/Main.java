@@ -1,12 +1,11 @@
 package nl.utwente.fmt.rers;
 
 import java.io.FileNotFoundException;
-import java.time.Duration;
-import java.time.Instant;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Arrays;
 
 import de.learnlib.api.logging.LearnLogger;
-import de.learnlib.api.oracle.PropertyOracle;
-import de.learnlib.api.query.DefaultQuery;
 import net.automatalib.modelcheckers.ltsmin.LTSminUtil;
 import nl.utwente.fmt.rers.RERSExperiment.LEARNER;
 import org.apache.commons.cli.CommandLine;
@@ -15,13 +14,20 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.slf4j.impl.SimpleLogger;
 
 public class Main {
 
     public static final LearnLogger LOGGER = LearnLogger.getLogger(Main.class);
 
     public static void main(String[] args) throws ParseException, FileNotFoundException {
+
+        try {
+            LOGGER.info("hostname: " + InetAddress.getLocalHost().getHostName());
+        } catch (UnknownHostException e) {
+        }
+
+        LOGGER.info("commandline is: " + String.join(" ", args));
+
         final CommandLineParser parser = new DefaultParser();
         final CommandLine line = parser.parse(getOptions(), args);
 
@@ -32,9 +38,7 @@ public class Main {
             if (line.hasOption('h')) {
                 printUsage();
                 exit = 0;
-            }
-            else {
-
+            } else {
                 final int problem = Integer.parseInt(lineArgs[0]);
                 final double multiplier = Double.parseDouble(line.getOptionValue('m', "1.0"));
                 LOGGER.info("multiplier is: " + multiplier);
@@ -100,7 +104,9 @@ public class Main {
                             "emqueries," +
                             "emoqueries," +
                             "inqueries," +
-                            "length");
+                            "length," +
+                            "multiplier," +
+                            "refinements");
 
                     experiment.run();
                     LOGGER.info("final states: " + experiment.getFinalHypothesis().getStates().size());
@@ -111,6 +117,7 @@ public class Main {
                     LOGGER.info("Final learning queries: " + RERSExperiment.getLearnQueryCounterSUL().getStatisticalData().getCount());
 
                     LOGGER.info("Properties disproved: " + experiment.getPropertyOracles().stream().filter(p -> p.isDisproved()).count());
+
                     exit = 0;
                 }
             }

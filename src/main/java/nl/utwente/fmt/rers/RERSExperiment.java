@@ -1,5 +1,6 @@
 package nl.utwente.fmt.rers;
 
+import com.google.common.base.Suppliers;
 import de.learnlib.algorithms.adt.learner.ADTLearnerBuilder;
 import de.learnlib.algorithms.dhc.mealy.MealyDHC;
 import de.learnlib.algorithms.discriminationtree.mealy.DTLearnerMealyBuilder;
@@ -41,6 +42,8 @@ import de.learnlib.oracle.equivalence.WpMethodEQOracle;
 import de.learnlib.oracle.membership.AbstractSULOmegaOracle;
 import de.learnlib.oracle.membership.SULOracle;
 import de.learnlib.oracle.membership.SULSymbolQueryOracle;
+import de.learnlib.oracle.parallelism.ParallelOracle;
+import de.learnlib.oracle.parallelism.StaticParallelOracleBuilder;
 import de.learnlib.oracle.property.MealyFinitePropertyOracle;
 import de.learnlib.oracle.property.MealyLassoPropertyOracle;
 import de.learnlib.oracle.property.PropertyOracleChain;
@@ -82,8 +85,6 @@ public class RERSExperiment extends Experiment.MealyExperiment<String, String> {
         TTT
     }
 
-    public static String TYPE;
-
     public static final LearnLogger LOGGER = LearnLogger.getLogger(RERSExperiment.class);
 
     @Getter
@@ -106,6 +107,12 @@ public class RERSExperiment extends Experiment.MealyExperiment<String, String> {
 
     @Getter
     private static ResetCounterObservableSUL emoCounter;
+
+    @Getter
+    private static double multiplier;
+
+    @Getter
+    private static RERSExperiment instance = null;
 
     private RERSExperiment(MealyLearner learningAlgorithm,
                            MealyEquivalenceOracle equivalenceAlgorithm,
@@ -151,6 +158,8 @@ public class RERSExperiment extends Experiment.MealyExperiment<String, String> {
 
         assert !(disproveFirst && cexFirst);
 
+        RERSExperiment.multiplier = multiplier;
+
         String mcType = monitor ? "monitor" : "";
         mcType += buchi && monitor ? "-" : "";
         mcType += buchi ? "buchi" : "";
@@ -178,6 +187,12 @@ public class RERSExperiment extends Experiment.MealyExperiment<String, String> {
         inOracle = new SULOracle(inSymbolCounterSUL = new SymbolCounterSUL("inclusion", inQueryCounterSUL = new ResetCounterSUL("inclusion", realSUL)));
 
         emOOracle = AbstractSULOmegaOracle.newOracle(emOSymbolCounterSUL = new SymbolCounterObservableSUL("omega emptiness", emOQueryCounterSUL = new ResetCounterObservableSUL("omega emptiness", problemSUL)));
+
+        final MembershipOracle parEQOracle =
+                new StaticParallelOracleBuilder(Suppliers.ofInstance(eqOracle)).
+                                    withDefaultNumInstances().
+                                    withMinBatchSize(50000).
+                                    withPoolPolicy(ParallelOracle.PoolPolicy.FIXED).create();
 
         //final SymbolQueryOracle realOracle = MealyCaches.createCache(alphabet, realCounter = new CounterSymbolQueryOracle(problemSUL, "real"));
         //learnCounter = new CounterOracle(realOracle, "learn");
@@ -332,18 +347,21 @@ public class RERSExperiment extends Experiment.MealyExperiment<String, String> {
 
         if (blackBoxOracle != null) equivalenceOracle.addOracle(blackBoxOracle);
 
-        equivalenceOracle.addOracle(new WpMethodEQOracle.MealyWpMethodEQOracle(eqOracle, 3));
+        equivalenceOracle.addOracle(new WpMethodEQOracle.MealyWpMethodEQOracle(parEQOracle, 3));
         if (randomWords) {
-            equivalenceOracle.addOracle(new EQOracleChain.MealyEQOracleChain(
-                    equivalenceOracle,
+            final int tests = 1000 * 1000 * 1;
+            final int batchSize = tests / 20;
+            equivalenceOracle.addOracle(
                     new RandomWordsEQOracle.MealyRandomWordsEQOracle(
-                            eqOracle,
+                            parEQOracle,
                             number * 5,
-                            number * 50, 1000 * 1000 * 100,
-                            new Random(123456l))));
+                            number * 50,
+                            tests,
+                            new Random(123456l),
+                            batchSize));
         }
 
-        return new RERSExperiment(mealyLearner, new TimeOutEQOracle(equivalenceOracle, timeout), alphabet, propertyOracles);
+        return instance = new RERSExperiment(mealyLearner, new TimeOutEQOracle(equivalenceOracle, timeout), alphabet, propertyOracles);
     }
 
     /**

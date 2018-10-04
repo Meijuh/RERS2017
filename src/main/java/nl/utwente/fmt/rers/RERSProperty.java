@@ -127,7 +127,7 @@ public class RERSProperty implements PropertyOracle.MealyPropertyOracle<String, 
         // write the CSV line.
         if (result != null) {
             System.out.printf(
-                    "%d,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d%n",
+                    "%d,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%d%n",
                     problem,
                     learner,
                     mcType,
@@ -146,7 +146,9 @@ public class RERSProperty implements PropertyOracle.MealyPropertyOracle<String, 
                     RERSExperiment.getEmQueryCounterSUL().getStatisticalData().getCount(),
                     RERSExperiment.getEmOQueryCounterSUL().getStatisticalData().getCount(),
                     RERSExperiment.getInQueryCounterSUL().getStatisticalData().getCount(),
-                    result.getInput().length());
+                    result.getInput().length(),
+                    RERSExperiment.getMultiplier(),
+                    RERSExperiment.getInstance().getRounds().getCount());
         }
 
         return result;
@@ -155,7 +157,7 @@ public class RERSProperty implements PropertyOracle.MealyPropertyOracle<String, 
 
     @Nullable
     @Override
-    public DefaultQuery findCounterExample(MealyMachine hypothesis, Collection inputs)
+    public DefaultQuery doFindCounterExample(MealyMachine hypothesis, Collection inputs)
             throws ModelCheckingException {
 
         return propertyOracle.findCounterExample(hypothesis, inputs);
